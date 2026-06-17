@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COT033 TMF QC · 기관 요청 트래커</title>
+<style>
+  :root{
+    --paper:#F4F5F7; --surface:#FFFFFF; --ink:#1B2430; --ink-soft:#5A6573;
+    --line:#E4E7EC; --line-soft:#EEF0F3;
+    --request:#B26A00;  --request-bg:#FBF1DF;   /* 기관 요청 필요 */
+    --cra:#3949AB;      --cra-bg:#EAECF8;        /* CRA 자체 처리 */
+    --confirm:#5A6573;  --confirm-bg:#EDEFF2;    /* CPM 확인/답변 */
+    --done:#2E7D52;     --done-bg:#E6F1EB;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:Inter,-apple-system,BlinkMacSystemFont,"Malgun Gothic","맑은 고딕",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+
+  /* Header */
+  header{margin-bottom:20px}
+  .eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;color:var(--ink-soft);text-transform:uppercase}
+  h1{font-size:25px;font-weight:800;letter-spacing:-.02em;margin:8px 0 4px}
+  .sub{color:var(--ink-soft);font-size:13.5px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px;font-size:12px;color:var(--ink-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+  /* Site tabs */
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 10px;position:sticky;top:0;background:var(--paper);padding:10px 0;z-index:20}
+  .tab{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 13px;cursor:pointer;
+    font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;transition:.15s}
+  .tab:hover{border-color:#C9CFD8}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab .code{font:700 11px/1 var(--mono)}
+  .tab .badge{background:var(--request);color:#fff;border-radius:20px;font:700 11px/1 var(--mono);padding:3px 7px;min-width:20px;text-align:center}
+  .tab.active .badge{background:#fff;color:var(--ink)}
+  .tab .badge.zero{background:var(--line);color:var(--ink-soft)}
+  .tab.active .badge.zero{background:rgba(255,255,255,.25);color:#fff}
+
+  /* Filter */
+  .filterbar{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap}
+  .fbtn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 11px;font-size:12px;cursor:pointer;color:var(--ink-soft);font-weight:600}
+  .fbtn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* Site block */
+  .site{display:none}
+  .site.show{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .site-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .site-title{font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .site-title .num{font:800 13px/1 var(--mono);color:var(--ink-soft);margin-right:8px}
+  .mailbtn{background:var(--request);color:#fff;border:none;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.15s}
+  .mailbtn:hover{background:#9a5b00}
+  .mailbtn:disabled{background:var(--line);color:var(--ink-soft);cursor:not-allowed}
+
+  /* Item card */
+  .item{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:0;margin-bottom:11px;overflow:hidden;display:flex}
+  .spine{width:4px;flex:none}
+  .spine.request{background:var(--request)} .spine.cra{background:var(--cra)} .spine.confirm{background:var(--confirm)}
+  .item.done .spine{background:var(--done)}
+  .item-body{flex:1;padding:14px 16px}
+  .item.done .item-body{opacity:.55}
+  .item-top{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+  .loc{font:700 11.5px/1 var(--mono);color:var(--ink);background:var(--line-soft);padding:4px 7px;border-radius:5px}
+  .doc{font-size:12.5px;color:var(--ink-soft);font-weight:600}
+  .chip{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.02em}
+  .chip.request{background:var(--request-bg);color:var(--request)}
+  .chip.cra{background:var(--cra-bg);color:var(--cra)}
+  .chip.confirm{background:var(--confirm-bg);color:var(--confirm)}
+  .chip.stat{background:#fff;border:1px solid var(--line);color:var(--ink-soft)}
+  .action{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .item.done .action{text-decoration:line-through}
+  .note{font-size:12.5px;color:var(--ink-soft);background:var(--line-soft);border-radius:7px;padding:8px 10px;margin-top:8px}
+  .note b{color:var(--request);font-family:var(--mono);font-weight:700;font-size:11.5px}
+  .item-foot{display:flex;align-items:center;gap:8px;margin-top:11px}
+  .check{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none}
+  .check input{width:15px;height:15px;accent-color:var(--done);cursor:pointer}
+
+  .empty{text-align:center;color:var(--ink-soft);font-size:13px;padding:40px 0}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(20,28,40,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .overlay.show{display:flex}
+  .modal{background:var(--surface);border-radius:14px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .modal-head h3{font-size:16px;font-weight:800}
+  .modal-head .x{border:none;background:var(--line-soft);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;color:var(--ink-soft)}
+  .modal-body{padding:16px 20px;overflow:auto}
+  .modal-body label{font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase}
+  .modal-body textarea{width:100%;margin-top:7px;border:1px solid var(--line);border-radius:9px;padding:13px;font-family:var(--sans);font-size:13.5px;line-height:1.65;color:var(--ink);resize:vertical;min-height:300px}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+  .btn{border:none;border-radius:9px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn.ghost{background:var(--line-soft);color:var(--ink)}
+  .btn.primary{background:var(--ink);color:#fff}
+  .hint{font-size:11.5px;color:var(--ink-soft);margin-top:9px}
+  /* 진행 상태 */
+  .status-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:11px;padding-top:11px;border-top:1px dashed var(--line)}
+  .status-row .slbl{font-size:11px;color:var(--ink-soft);font-weight:700;margin-right:3px}
+  .sbtn{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:.12s}
+  .sbtn:hover{border-color:#C9CFD8;background:#FAFBFC}
+  .sbtn.on-notyet{background:#EDEFF2;color:#5A6573;border-color:#D2D7DE}
+  .sbtn.on-sent{background:#E7ECFA;color:#3949AB;border-color:#C5D0F2}
+  .sbtn.on-replied{background:#E0F2EE;color:#0F7B6C;border-color:#BFE3DB}
+  .sbtn.on-resend{background:#FBE9E7;color:#C0392B;border-color:#F2C9C3}
+  .sbtn.on-wip{background:#FBF1DF;color:#B26A00;border-color:#F0DDB8}
+  .sbtn.on-done{background:#E6F1EB;color:#2E7D52;border-color:#C2E0CE}
+  .status-date{font-size:10.5px;color:var(--ink-soft);margin-left:6px}
+  .summary{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin-top:7px}
+  .summary b{font-family:var(--mono);font-weight:700;color:var(--ink)}
+  .btn.mark{background:#3949AB;color:#fff}
+  .btn.mark:hover{background:#2f3e94}
+
+  @media(max-width:560px){
+    .site-head{align-items:flex-start}
+    .mailbtn{width:100%;justify-content:center}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">PG-102-P2-01 · COT033 TMF QC R1</div>
+    <h1>기관 요청 트래커</h1>
+    <div class="sub">CPM 검토의견(파란색) 중 <b>아직 처리·답변이 필요한 항목</b>만 추려 기관별로 정리했어요. 기관에 보낼 항목은 메일 초안으로 바로 뽑을 수 있어요.</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--request)"></i>기관 요청 필요 (CRC/PI에 요청)</span>
+      <span><i class="dot" style="background:var(--cra)"></i>CRA 자체 처리</span>
+      <span><i class="dot" style="background:var(--confirm)"></i>CPM 확인·답변</span>
+    </div>
+    <div class="legend" style="margin-top:8px">
+      <span style="font-weight:700;color:var(--ink)">진행 단계:</span>
+      <span>미요청 → 요청함 → 회신옴 → 재요청 → 완료 (각 항목 하단에서 클릭해 기록)</span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <div class="filterbar" id="filters">
+    <button class="fbtn active" data-f="all">전체</button>
+    <button class="fbtn" data-f="request">기관 요청</button>
+    <button class="fbtn" data-f="cra">CRA 처리</button>
+    <button class="fbtn" data-f="confirm">확인·답변</button>
+    <button class="fbtn" data-f="resend">⚑ 재요청 필요</button>
+    <button class="fbtn" data-f="replied">📩 회신옴</button>
+    <button class="fbtn" data-f="open">미완료만</button>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<!-- Email modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">기관 요청 메일 초안</h3>
+      <button class="x" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>메일 본문 (수정 후 복사하세요)</label>
+      <textarea id="mailText"></textarea>
+      <div class="hint">※ 받는 분/인사말/세부 표현은 기관·담당자에 맞게 다듬어 사용하세요. 진행 상태가 <b>'미요청'</b> 또는 <b>'재요청'</b>인 기관 요청 항목만 포함됩니다.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">닫기</button>
+      <button class="btn mark" onclick="markRequested()">메일에 담긴 항목 '요청함' 표시</button>
+      <button class="btn primary" id="copyBtn" onclick="copyMail()">본문 복사</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 데이터: CPM 검토의견 중 미결/액션 항목 ---------- */
+const SITES = [
+ { id:"01", name:"서울성모병원 (CMCSEOUL)", items:[
+    {loc:"E179", doc:"ICF Tracking Log", cat:"request", stat:"진행 필요",
+     action:"Main ICF V2.1_V1.0 통지일자를 통지서 출력일(2026-04-14)로 수정하고, 2026-03-24자로 오기 수정한 스캔본 확보",
+     note:"[PM_20260602] 다른 동의서와 동일하게 통지서 출력일로 통일. CRC에게 통지일 2026-04-14 수정 + 2026-03-24자 오기수정 요청 후 스캔본 확보."},
+    {loc:"E167", doc:"임상종사자 이수증 / Delegation", cat:"request", stat:"진행 필요",
+     action:"Sub-I 이준엽 Delegation log에 연구자 서명 추가 확보 (동일인 확인만으론 불충분)",
+     note:"[PM_20260518] 동일인 확인만 하는 게 아니라 delegation에 서명 추가 필요. 기관에 요청해 서명 추가 확보."},
+ ]},
+ { id:"02", name:"고대안암병원", items:[
+    {loc:"E171", doc:"Delegation Form", cat:"request", stat:"회신 대기",
+     action:"Sub-I 김남훈 Delegation에 연구자 추가 서명 확보 (가이드 정정 반영)",
+     note:"[PM_20260518] 임상에서는 서명방식이 상이하면 안 됨. waiver 대신 tight 관리. delegation 서명 추가 확보 요망. (CRA_20260529 기관 요청 완료, 회신 대기)"},
+    {loc:"E85", doc:"IRB Initial submission", cat:"cra", stat:"확인 필요",
+     action:"초기심의·보완 통지서 파일명 통지일과 IRB tracker 통지일 불일치 해소 (20240902/20240912, 20240923/20240928)",
+     note:"[PM_20260518] 수정 완료 답변했으나 여전히 불일치. 어느 부분이 수정됐는지 확인 후 일치시키기."},
+    {loc:"E86", doc:"IRB Amendment", cat:"cra", stat:"확인 필요",
+     action:"폴더 내 저장된 파일명 수정 + 폴더와 tracker 내용 일치하도록 기재",
+     note:"[PM_20260518] 폴더 저장 파일명 수정 안 됨."},
+    {loc:"E179", doc:"임상종사자 이수증/GCP", cat:"cra", stat:"확인 필요",
+     action:"서버에 저장된 파일 중 불필요한(캡쳐된) 파일 정리",
+     note:"5) 서버 저장 파일 중 옆에 캡쳐된 그림의 파일 정리 요청."},
+ ]},
+ { id:"06", name:"고대안산병원", items:[
+    {loc:"E99", doc:"Local Lab Certificate", cat:"request", stat:"회신 대기",
+     action:"냉동고 2025-09-30 온도기록 확인 + 냉장고 온도기록지 PI 이름(김난희→서지아) 오기, 2024-12-01~11 빈칸 처리 확인",
+     note:"[PM_20260518] 09-30 온도 미기재 / 2025-03~05 PI 이름 김난희로 오기재. (기관 확인 요청 중, 회신 후 재저장 예정)"},
+    {loc:"E168", doc:"Training Record · PRT V2.2", cat:"request", stat:"진행 필요",
+     action:"PRT V2.2 추가 기재분 아래에 서지아 교수 서명 + 서명일 추가 확보",
+     note:"[PM_20260519/0602] 추가 기재 내용에 작성자 서명·서명일 필요. 서지아 교수 서명 추가 확보 요망."},
+    {loc:"E168", doc:"Training Record · 박소영 topic", cat:"request", stat:"회신 대기",
+     action:"박소영 training topic 기재 누락분 확보",
+     note:"[PM_20260519] training topic 기재 누락. (기관 요청 중, 재저장 예정)"},
+    {loc:"E168", doc:"Training Record · PRT V3.0", cat:"cra", stat:"진행 필요",
+     action:"PRT V3.0 R2 소급 불가 → NTF 작성 + SOP 위반 PD Form 작성, training record와 함께 보관",
+     note:"[PM_20260602] 소급 불가하면 SOP 위반이므로 NTF + PD Form 작성."},
+    {loc:"E168", doc:"Training Record · PI 변경 ICF", cat:"cra", stat:"진행 필요",
+     action:"PI 변경 시 ICF training record 미작성 건 → COVR 수정 불가하므로 NTF 작성 + 연구자 서명 받아 TSF/TMF 보관",
+     note:"[PM_20260602] COVR 최종화로 수정 불가. NTF + 연구자 서명 보관."},
+    {loc:"E173", doc:"Site Visit Log", cat:"cra", stat:"진행 필요",
+     action:"PI name 서지아 수정본을 Site와 Pharmacy 모두 적용해 저장",
+     note:"[PM_20260602] 수정본 저장 안 됨. Site·Pharmacy 모두 적용 필요."},
+    {loc:"E174", doc:"Source Document ID List", cat:"confirm", stat:"확인 필요",
+     action:"2번 SDI의 Vital signs source 불일치 확인",
+     note:"[PM_20260602] SDI Vital signs source 불일치. 확인 요망."},
+    {loc:"E177", doc:"ICF Tracking Log", cat:"request", stat:"회신 대기",
+     action:"마지막 승인 Main ICF version 오기 수정본 확보 + 인체유래물 ICF Subject Informed Consent Log 확인",
+     note:"마지막 승인 Main ICF version 오기 (기관 요청 중, 재저장 예정). 인체유래물 ICF Consent Log 여부 확인."},
+    {loc:"E135", doc:"Contract Addendums", cat:"cra", stat:"진행 필요",
+     action:"3차 변경 계약서 폴더에 실제 저장 (완료 답변했으나 미저장)",
+     note:"[PM_20260602] 폴더에 파일 저장되어 있지 않음."},
+    {loc:"E75", doc:"Others · Site Version", cat:"confirm", stat:"확인 필요",
+     action:"Patient card 파일 내 날짜(20240821)와 site effective date(20240911) 관계 답변",
+     note:"[PM_20260518] 검토의견 답변 또는 반영되지 않음."},
+    {loc:"E85", doc:"IRB Initial submission", cat:"cra", stat:"확인 필요",
+     action:"초기심의·보완 통지서 뒤 통보일 기재 + 상단 문서를 초기심의 문서로 수정, 폴더 문서명-tracker 일치",
+     note:"[PM_20260518] 검토의견 반영 안 됨."},
+    {loc:"E86", doc:"IRB Amendment", cat:"confirm", stat:"확인 필요",
+     action:"2차·7차 변경 기관장 확인서 유무, 6차 변경 IRB Confirmation Letter 서버 저장 여부 확인",
+     note:"[PM_20260518] 8), 9) 검토의견 답변 또는 반영 안 됨."},
+ ]},
+ { id:"07", name:"대전을지병원", items:[
+    {loc:"E164", doc:"Site Initiation · Attending List", cat:"cra", stat:"진행 필요",
+     action:"⚠️ 기관 요청이 아니라 CRA가 직접 사본 상단에 '원본대조필(Certificate of True Copy)' 기재·서명 → 사본은 TMF, 원본은 ISF 보관",
+     note:"[PM_20260602] 기관에 요청하지 말 것. CRA가 직접 작성·서명. 원본은 CSR 승인 후 문서이관 시 함께 송부."},
+    {loc:"E161", doc:"임상종사자 이수증/GCP", cat:"request", stat:"회신 대기",
+     action:"PI 홍준화 2024년 임상종사자 이수증(2시간 부족분) 추가 확보",
+     note:"[PM_20260519] 2024년 총 2시간만 이수. 2024년 이수증 확인. (추가 이수증 확보 요청 중, 회신 시 저장)"},
+    {loc:"E170", doc:"Subject Informed Consent Log", cat:"request", stat:"진행 필요",
+     action:"2번(SF, Main ICF V2.1_1.0 미서명)·3·5·6번 대상자 재서명 / 서명획득일 오기수정 획득",
+     note:"2번 대상자 V2.1_1.0 미서명, 3·5·6번 서명획득일 오기. (재서명 획득 예정)"},
+ ]},
+ { id:"09", name:"영남대병원", items:[
+    {loc:"E98", doc:"IRB Membership Lists", cat:"request", stat:"확인 필요",
+     action:"20251201, 20260301 List가 ISF에 filing 됐는지 확인 후, 미보관 시 기관에 ISF 보관 안내",
+     note:"[PM_20260602] SCVR에서 확인 안 됨. ISF filing 여부 확인 및 보관 안내."},
+    {loc:"E173", doc:"PD Form / PD Log", cat:"cra", stat:"진행 필요",
+     action:"PD Log No.7과 No.098 중복 → PSR-PD Log 및 SCVR과 동일하게 수정",
+     note:"[PM_20260602] No.7은 No.098와 같은 내용인데 왜 따로 기재? PSR·SCVR과 동일하게 수정."},
+    {loc:"E174", doc:"Subject Screening Log", cat:"request", stat:"회신 대기",
+     action:"상단 site number 오기 수정본 확보",
+     note:"site number 오기. (오기 수정본 요청 상태, 대기 중)"},
+ ]},
+ { id:"10", name:"세브란스병원", items:[
+    {loc:"E179", doc:"Subject Screening Log", cat:"request", stat:"회신 대기",
+     action:"SF 대상자 No란에 상세 SF 사유 기재 안내 (타기관과 동일하게)",
+     note:"[PM_20260520] SF 대상자 No란에 상세 SF 사유 기재 안내. (기관 수정 요청 중, 회신 시 저장)"},
+    {loc:"E179", doc:"ICF Tracking Log", cat:"request", stat:"회신 대기",
+     action:"인체유래물 ICF 버전 오기 수정본 확보",
+     note:"인체유래물 ICF 버전 오기. (기관 수정 요청 중, 회신 시 저장)"},
+    {loc:"E99", doc:"Local Lab Certificate · 온도기록지", cat:"confirm", stat:"답변 필요",
+     action:"온도기록지 작성 가이드 관련 CPM 질의에 답변 (추가 action은 없으나 설명 요청)",
+     note:"[PM_20260602] '가이드 사전 전달 받은 바 없다'는 답변 관련 설명 요청. min/max·페이지번호 기재 기준."},
+ ]},
+];
+
+/* ---------- 렌더링 ---------- */
+const CAT_LABEL={request:"기관 요청", cra:"CRA 처리", confirm:"확인·답변"};
+let curSite=SITES[0].id, curFilter="all";
+
+// 진행 단계 정의 (카테고리별)
+const FLOW={
+  request:[['notyet','미요청'],['sent','요청함'],['replied','회신옴'],['resend','재요청'],['done','완료']],
+  cra:[['notyet','미착수'],['wip','진행중'],['done','완료']],
+  confirm:[['notyet','미착수'],['wip','진행중'],['done','완료']],
+};
+const ST_LABEL={notyet:'미요청',sent:'요청함',replied:'회신옴',resend:'재요청',wip:'진행중',done:'완료'};
+
+const PROG_KEY="cot033_tmf_prog_v1";
+const DONE_KEY="cot033_tmf_done_v1"; // 구버전 호환
+let prog=loadProg();
+migrateOldDone();
+
+function loadProg(){ try{return JSON.parse(localStorage.getItem(PROG_KEY))||{}}catch(e){return {}} }
+function saveProg(){ try{localStorage.setItem(PROG_KEY,JSON.stringify(prog))}catch(e){} }
+function keyOf(sid,i){return sid+"_"+i;}
+function migrateOldDone(){
+  try{
+    const old=JSON.parse(localStorage.getItem(DONE_KEY)||'null');
+    if(old){ Object.keys(old).forEach(k=>{ if(old[k] && !prog[k]) prog[k]={s:'done',d:''}; }); saveProg(); }
+  }catch(e){}
+}
+// 저장값 없으면 기존 stat에서 합리적 기본값 추론
+function defaultStatus(it){
+  if(it.cat==='request' && it.stat && it.stat.indexOf('회신')>=0) return 'sent'; // '회신 대기' → 요청함
+  return 'notyet';
+}
+function statusOf(sid,i,it){ return prog[keyOf(sid,i)]?.s || defaultStatus(it); }
+function setStatus(sid,i,s){
+  const d=new Date();
+  prog[keyOf(sid,i)]={s, d:(d.getMonth()+1)+'/'+d.getDate()};
+  saveProg(); renderTabs(); renderContent();
+}
+
+// 탭 배지 = 기관요청 항목 중 미완료 수
+function requestCount(site){
+  return site.items.filter((it,i)=>it.cat==='request' && statusOf(site.id,i,it)!=='done').length;
+}
+
+function renderTabs(){
+  document.getElementById("tabs").innerHTML = SITES.map(s=>{
+    const c=requestCount(s);
+    return `<button class="tab ${s.id===curSite?'active':''}" onclick="selectSite('${s.id}')">
+      <span class="code">${s.id}</span>${s.name.replace(/\s*\(.*/,'')}
+      <span class="badge ${c===0?'zero':''}">${c}</span></button>`;
+  }).join("");
+}
+
+function passFilter(site,it){
+  const st=statusOf(site.id,it._i,it);
+  if(curFilter==="request") return it.cat==="request";
+  if(curFilter==="cra") return it.cat==="cra";
+  if(curFilter==="confirm") return it.cat==="confirm";
+  if(curFilter==="resend") return st==="resend";
+  if(curFilter==="replied") return st==="replied";
+  if(curFilter==="open") return st!=="done";
+  return true;
+}
+
+function renderContent(){
+  const site=SITES.find(s=>s.id===curSite);
+  const all=site.items.map((it,i)=>({...it,_i:i}));
+  const items=all.filter(it=>passFilter(site,it));
+
+  // 기관요청 진행 요약
+  const reqs=all.filter(it=>it.cat==='request');
+  const cnt={notyet:0,sent:0,replied:0,resend:0,done:0};
+  reqs.forEach(it=>{cnt[statusOf(site.id,it._i,it)]++;});
+  // 메일 버튼: 미요청·재요청 항목이 있을 때 활성화
+  const hasReq=reqs.some(it=>['notyet','resend'].includes(statusOf(site.id,it._i,it)));
+
+  let html=`<div class="site show">
+    <div class="site-head">
+      <div>
+        <div class="site-title"><span class="num">SITE ${site.id}</span>${site.name}</div>
+        <div class="summary">
+          <span>미요청 <b>${cnt.notyet}</b></span>
+          <span>요청함 <b>${cnt.sent}</b></span>
+          <span>회신옴 <b>${cnt.replied}</b></span>
+          <span>재요청 <b style="color:#C0392B">${cnt.resend}</b></span>
+          <span>완료 <b style="color:#2E7D52">${cnt.done}</b></span>
+        </div>
+      </div>
+      <button class="mailbtn" ${hasReq?'':'disabled'} onclick="openMail('${site.id}')">
+        ✉️ 기관 요청 메일 초안 만들기</button>
+    </div>`;
+
+  if(items.length===0){ html+=`<div class="empty">표시할 항목이 없어요.</div>`; }
+  else {
+    html+=items.map(it=>{
+      const st=statusOf(site.id,it._i,it);
+      const isDone=st==='done';
+      const dstr=prog[keyOf(site.id,it._i)]?.d;
+      const flow=FLOW[it.cat]||FLOW.confirm;
+      const sbtns=flow.map(([v,l])=>
+        `<button class="sbtn ${st===v?('on-'+v):''}" onclick="setStatus('${site.id}',${it._i},'${v}')">${l}</button>`
+      ).join('');
+      return `<div class="item ${isDone?'done':''}">
+        <div class="spine ${it.cat}"></div>
+        <div class="item-body">
+          <div class="item-top">
+            <span class="loc">${it.loc}</span>
+            <span class="doc">${it.doc}</span>
+            <span class="chip ${it.cat}">${CAT_LABEL[it.cat]}</span>
+          </div>
+          <div class="action">${it.action}</div>
+          <div class="note"><b>CPM</b> ${it.note}</div>
+          <div class="status-row">
+            <span class="slbl">진행</span>${sbtns}
+            ${dstr?`<span class="status-date">최근 변경 ${dstr}</span>`:''}
+          </div>
+        </div></div>`;
+    }).join("");
+  }
+  html+=`</div>`;
+  document.getElementById("content").innerHTML=html;
+}
+
+function selectSite(id){curSite=id;renderTabs();renderContent();window.scrollTo({top:0,behavior:'smooth'});}
+
+document.getElementById("filters").addEventListener("click",e=>{
+  if(e.target.classList.contains("fbtn")){
+    document.querySelectorAll(".fbtn").forEach(b=>b.classList.remove("active"));
+    e.target.classList.add("active");
+    curFilter=e.target.dataset.f;renderContent();
+  }
+});
+
+/* ---------- 메일 초안 ---------- */
+let mailCtx=null; // {sid, idxs:[...]}
+function openMail(sid){
+  const site=SITES.find(s=>s.id===sid);
+  const reqs=site.items.map((it,i)=>({...it,_i:i}))
+    .filter(it=>it.cat==="request" && ['notyet','resend'].includes(statusOf(sid,it._i,it)));
+  mailCtx={sid, idxs:reqs.map(it=>it._i)};
+
+  let body=`안녕하세요, ${site.name} 연구팀 선생님.\n\n`;
+  body+=`PG-102-P2-01 연구 관련하여 TMF/문서 정리 과정에서 아래 사항에 대한 확인 및 조치를 요청드립니다.\n\n`;
+  reqs.forEach((it,n)=>{
+    const re=statusOf(sid,it._i,it)==='resend'?' (재요청)':'';
+    body+=`${n+1}. [${it.doc}]${re}\n   - ${it.action}\n\n`;
+  });
+  body+=`확인 후 회신 또는 수정본 전달 부탁드립니다. 감사합니다.\n\n[CRA 성명/연락처]`;
+
+  document.getElementById("modalTitle").textContent=`Site ${site.id} · ${site.name} 요청 메일`;
+  document.getElementById("mailText").value=body;
+  document.getElementById("overlay").classList.add("show");
+}
+function markRequested(){
+  if(!mailCtx) return;
+  const d=new Date(); const ds=(d.getMonth()+1)+'/'+d.getDate();
+  mailCtx.idxs.forEach(i=>{ prog[keyOf(mailCtx.sid,i)]={s:'sent',d:ds}; });
+  saveProg();
+  const b=event.target; const o=b.textContent;
+  b.textContent="표시됨 ✓"; setTimeout(()=>{b.textContent=o;closeModal();renderTabs();renderContent();},700);
+}
+function closeModal(){document.getElementById("overlay").classList.remove("show");}
+function copyMail(){
+  const ta=document.getElementById("mailText");
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(()=>{
+    const b=document.getElementById("copyBtn");const o=b.textContent;
+    b.textContent="복사됨 ✓";setTimeout(()=>b.textContent=o,1500);
+  }).catch(()=>{document.execCommand("copy");});
+}
+document.getElementById("overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeModal();});
+
+renderTabs();renderContent();
+</script>
+</body>
+</html>
